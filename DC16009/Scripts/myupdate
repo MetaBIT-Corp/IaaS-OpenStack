@@ -1,0 +1,11 @@
+#!/bin/bash
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+
+case "$1" in
+	start)
+	    /path/to/update/script
+	    ;;
+	stop|restart|reload)
+	    ;;
+esac

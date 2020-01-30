@@ -1,0 +1,9 @@
+----Yum package manager-----
+#yum install package
+#yum remove package
+#yum update package
+#yum search package
+#yum info package
+#yum update
+#yum check-update
+#yum list installed | less

@@ -1,0 +1,17 @@
+Keystone --> Servicio de autenticación, autorización y account (AAA)
+
+Glance --> Servicio de imagenes
+
+Nova --> Servicio de computing (cálculo y procesamiento)
+
+Neutron --> Servicio de networking (interconecta todos los demas servicios)
+
+Swift --> Object storage service, account, container and object db, redirect by swift-proxy.
+
+Cinder --> Provides persistent block storage resources (like HD and SSD), it's secondary storage and works with blocks.
+
+Horizon --> Dashboard (Web based user interface), is based on a Django module called *django-openstack*.
+
+Ceilometer --> Metering for generate the bill for user that used our services.
+
+Heat --> Provides REST API to orchestrate multiple cloud apps.

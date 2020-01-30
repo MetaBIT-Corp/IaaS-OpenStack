@@ -1,0 +1,9 @@
+1. Primero se instala el servicio de identidad "Keystone" en el nodo controlador, se desplegara Fernet tokens y Apache HTTP server.
+*Catalogo de servicios
+*Endpoints type: admin, public and internal (hosts with OpenStack services runs on it)
+*Catalog service = {regions, services and endpoints}
+
+The identity service contains these components:
+*Server
+*Drivers
+*Modules 

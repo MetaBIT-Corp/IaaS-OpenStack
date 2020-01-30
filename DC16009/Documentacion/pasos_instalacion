@@ -1,0 +1,13 @@
+#En todos los nodos se deben hacer estas instalaciones/configuraciones:
+
+#Instalar este paq para habilitar el repo de OpenStack (queens,rocky,pike)
+yum install centos-release-openstack-queens -y
+#Upgrade los paquetes de todos los nodos
+yum upgrade -y
+#En caso que el kernel se actualize se debe hacer un reboot para que se impl los cambios
+reboot
+#Instalamos el cliente de OpenStack
+yum install python-openstackclient -y
+#Instalamos el siguiente paquete para que automaticamente se gestionen politicas de
+#seguridad para los servicios de OpenStack
+yum install openstack-selinux -y
