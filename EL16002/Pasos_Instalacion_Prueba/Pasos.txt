@@ -1,0 +1,142 @@
+---------------Configuracion inicial y de entorno virtual ----------------------
+Se instalo qemu, se creo una nueva VM que funciona como template, creando el disco duro y agregando la iso desde GNS3. Es importante cambiar de telnet a vnc para que 
+se pueda hacer uso de virt viewer (cliente VNC).
+
+Pasos realizados en la prueba de instalacion de OPENSTACK en GNS3
+
+1. Se configuro la topologia en GNS3 haciendo NAT.
+
+#Comandos usados en el R1
+conf t
+int f0/0
+ip add dhcp
+no sh
+ip nat outside
+exit
+int f1/0
+ip add 10.0.0.1 255.255.255.0
+no sh
+ip nat inside
+exit
+
+#ACL rapidas
+access-lists 100 permit ip any any
+access-lists 100 permit icmp any any
+access-lists 100 permit udp any any
+
+ip nat inside source list 100 int f0/0
+
+
+2. Instalacion de CENTOS 7 y en la misma instalacion ser realizo la configuracion de red asignandole ips estaticas.
+
+3. Instalacion de nano y sudo.
+
+4.Se hizo un yum update de ambas VPCS.
+
+5.Se configuro el servidor NTP instalando Chrony poniendo al controller como cliente de un servidor NTP publico y el nodo compute como cliente NTP de controller. (Por alguna razon no me funciono el NTP en el compute usando controller de server).
+
+6. Hay que realizar un yum upgrade segun la documentacion (pero como ya se hizo el update ya no es necesario).
+
+7. Se procede a la instalacion de OPENSTACK version Stein comando--> yum install centos-release-openstack-stein. Luego hacemos un upgrade.
+
+8. La documentacion menciona que se debe reiniciar si hay un nuevo nucleo, no se que significa pero por las de hule las reinicie. :v 
+
+9. Se instala cliente openstack mediante el comando --> yum install python-openstackclient
+
+10. Luego se instala el paquete necesario para usar SELinux (algo que viene en el kernel para control de acceso) comando --> yum install openstack-selinux
+
+11. Instalar mariadb y otros paquetes para la base de datos en el nodo controlador. Comando --> yum install mariadb mariadb-server python2-PyMySQL
+
+12. La documentacion de openstack recomienda hacer una copia de los archivos que se encuentran en la ruta /etc/my.cnf.d/ , por lo tanto se realizo una copia del directorio y se renombro como my.cnf.d.copia. Se procede a crear el archivo openstack.cnf dentro de ese directorio y se agrega contenido segun la documentacion
+Referencia: https://docs.openstack.org/install-guide/environment-sql-database-rdo.html#install-and-configure-components 
+
+13. Ejecutamos el script mysql_sercure_installation y pulsamos enter, debido a que no tenemos constraseña seteada del root. Y ubicamos la nueva contraseña.
+
+14. Instalacion de servicio de cola de mensajes RabbitMQ. Referencia de instalacion y configuracion: https://docs.openstack.org/install-guide/environment-messaging-rdo.html
+
+15. Instalacion de memcache, ya que al parecer el keystone lo utilizara. Referencia de instalacion y configuracion: https://docs.openstack.org/install-guide/environment-memcached-rdo.html
+
+16. Instalacion de Etcd no entendi para que sirve :v buscare despues. Referencia de instalacion y configuracion: https://docs.openstack.org/install-guide/environment-etcd-rdo.html
+
+--------------------------Instalacion keystone-------------------------------
+1. Se da inicio a cumplir con los prerrequisitos para la intalacion del servicio en si. Se procede a la creacion de la base de datos llamada keystone en mariadb y brindar permisos.
+GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'localhost' IDENTIFIED BY 'ues';
+GRANT ALL PRIVILEGES ON keystone.* TO 'keystone'@'%' IDENTIFIED BY 'ues';
+
+2. Se procede a la instalacion del servicio haciendo uso del comando --> yum install openstack-keystone httpd mod_wsgi.
+
+3. Se edita el archivo de configuracion /etc/keystone/keystone.conf, en el cual en la seccion database agregamos el acceso a la BD de la siguiente manera:
+
+connection = mysql+pymysql://keystone:ues@controller/keystone
+Y eliminamos cualquier otra connection que haya.
+
+Tambien agregamos en la seccion token:
+provider = fernet
+
+4. Se procede a rellenar la base de datos del servicio identidad, con el siguiente comando --> su -s /bin/sh -c "keystone-manage db_sync" keystone
+
+5. Segun la documentacion se inicializa los respositorios de claves de fernet(proveedor de tokens):
+keystone-manage fernet_setup --keystone-user keystone --keystone-group keystone
+keystone-manage credential_setup --keystone-user keystone --keystone-group keystone
+
+6. Configuramos el servicio de identidad de keystone boostrap. Referencia: https://docs.openstack.org/keystone/stein/install/keystone-install-rdo.html
+
+7. Se configura el servidor Apache. Editamos el archivo /etc/httpd/conf/httpd.conf con lo siguiente:
+ServerName controller
+
+Y creamos un enlace  al /usr/share/keystone/wsgi-keystone.conf
+
+8. Se configuro variables de entorno para que cualquier subshell pueda hacer uso de estas. Referencia :https://docs.openstack.org/keystone/stein/install/keystone-install-rdo.html#keystone-install-configure-rdo
+
+9. Se procede a crear un dominio, proyectos, usuarios y roles, el dominio no se crea porque se utilizara el dominio por default que se crea automaticamente. Solamente se crea el proyecto los demas comandos en la referencia son ejemplos. Referencia: https://docs.openstack.org/keystone/stein/install/keystone-users-rdo.html
+
+10. Se creo un script que facilita la carga de las variables de entorno y es mas facil solicitar el token.
+
+
+-------------------------Instalacion de GLANCE ---------------------------------
+1. Se da inicio para cumplir con los prerrequisitos para la instalacion del servicio de imagenes. Se procede a la creacion de una base de datos llamada glance y se brinda los permisos pertinentes-
+GRANT ALL PRIVILEGES ON glance.* TO 'glance'@'localhost' IDENTIFIED BY 'image123';
+GRANT ALL PRIVILEGES ON glance.* TO 'glance'@'%' IDENTIFIED BY 'image123';
+
+2. Se ejecuta el script creado(admin-openrc) con las variables de entorno en relacion con el admin.
+
+3. Se crea las credenciales de servicio. Se crea el usuario:
+openstack user create --domain default --password-prompt glance
+Como password se puso image123
+
+Y agregamos el rol de admin al usuario glance y al proyecto.
+openstack role add --project service --user glance admin
+
+4. Se crea una entidad de servicio del tipo imagen. Referencia: https://docs.openstack.org/glance/stein/install/install-rdo.html
+
+5. Se crean punto finales de API del servicio de imagenes. Misma referencia que el paso anterior.
+
+6. Instalamos el paquete para el servicio glance, comando -->yum install openstack-glance
+
+7. Realizamos la configuracion de los archivos /etc/glance/glance-api.conf y /etc/glance/glance-registry.conf. Referencia: https://docs.openstack.org/glance/stein/install/install-rdo.html
+
+8. Llenamos la base de datos glance utilizando el comando -->  su -s /bin/sh -c "glance-manage db_sync" glance
+
+9.Y habilitamos los servicios: openstack-glance-api.service y  openstack-glance-registry.service para que inicien automaticamente cuando inicie el computador y los iniciamos con systemctl start.
+
+10. Y se finaliza la instalacion del servicio glance. Y se procede a generar una prueba usando el SO CirrOS. Referencia: https://docs.openstack.org/glance/stein/install/verify.html
+
+
+---------------------- Instalacion de servicio Placement --------------------
+1. Se procede a cumplir con los prerrequisitos. Que son crear una base de datos llamada placement y le asignamos permisos.
+GRANT ALL PRIVILEGES ON placement.* TO 'placement'@'localhost' IDENTIFIED BY 'place123';
+GRANT ALL PRIVILEGES ON placement.* TO 'placement'@'%' IDENTIFIED BY 'place123';
+
+2. Creamos un usuario del servicio placement usando el comando:
+openstack user create --domain default --password-prompt placement
+password: place
+
+3. Agregamos el usuario de placement al proyecto servicio con rol de admin.
+openstack role add --project service --user placement admin
+
+4. Se realiza la configuracion del servicio placement y se agregan puntos finales. Referencia: https://docs.openstack.org/placement/stein/install/install-rdo.html
+
+5. Finaliza la instalacion del servicio placement.
+
+--------------------------Instalacion de Nova--------------------------------
+1. 
