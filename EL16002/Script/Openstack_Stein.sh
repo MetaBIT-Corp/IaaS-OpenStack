@@ -3,7 +3,10 @@ clear
 opciones="Obtener_Credenciales_Admin Install_Controller_Node Install_Compute_Node Salir"
 
 
-#Verificacion de instalacion correcta de servicio nova en el nodo de computo
+# Verificacion de instalacion correcta de servicios en el nodo de computo
+# param $1 Directorio a verificar
+# param $2 Archivo a verificar
+# return int Retorna 0 si falla la verificacion y 1 si es un exito
 function verifyServiceInstall {
 	if [[ -d $1 ]]; then #Verifica si el directorio esta creado o existe
 		if [[ -f $2 ]]; then #Verifica si el archivo existe
@@ -16,6 +19,9 @@ function verifyServiceInstall {
 	fi
 }
 
+# Funcion que sirve para la validacion de cualquier contraseña
+# param $1 Mensaje a mostrar al usuario
+# return null
 function enterPassword {
 	# Lectura de contraseña de usuario OPENSTACK en RABBITMQ
 	echo -e "$1"
@@ -32,15 +38,17 @@ function enterPassword {
 	done
 }
 
-#Modificacion de archivos para instalacion de nova en nodo de computo
+# Funcion para la modificacion de archivos para instalacion de NOVA en nodo de computo
+# param $1 IP del nodo actual
+# return null
 function novaCompute {
 
 	# SUSTITUIR CON RUTA DE nova.conf --> se usa ruta actual para pruebas
 	novaConfDir=/home/ricardoe/Escritorio/prueba.conf
 
-	#Validacion de que si los archivos existen
+
 	echo -e "\nIniciando cambios en nova.conf ..."
-	sed -i "1 a enabled_apis=osapi_compute,metadata\ntransport_url = rabbit://openstack:$1@controller\nmy_ip = $2\nuse_neutron = true\nfirewall_driver = nova.virt.firewall.NoopFirewallDriver" $novaConfDir
+	sed -i "1 a enabled_apis=osapi_compute,metadata\ntransport_url = rabbit://openstack:$password@controller\nmy_ip = $2\nuse_neutron = true\nfirewall_driver = nova.virt.firewall.NoopFirewallDriver" $novaConfDir
 	
 
 	#####[api]#####
@@ -59,7 +67,7 @@ function novaCompute {
 
 	num_linea=${cadena/:\[keystone_authtoken\]/}
 
-	enterPassword "\nIngrese la constraseña del usurio nova."
+	enterPassword "\nIngrese la constraseña del usurio nova:"
 
 	#Se agrega bajo el numero de la linea indicada
 	sed -i "$num_linea a auth_url = http://controller:5000/v3\nmemcached_servers = controller:11211\nauth_type = password\nproject_domain_name = Default\nuser_domain_name = Default\nproject_name = service\nusername = nova\npassword = $password" $novaConfDir
@@ -90,7 +98,7 @@ function novaCompute {
 	cadena=$(grep -n "\[placement\]$" $novaConfDir)
 	num_linea=${cadena/:\[placement\]/}
 
-	enterPassword "\nIngrese la contraseña del usuario placement"
+	enterPassword "\nIngrese la contraseña del usuario placement:"
 	#Se agrega bajo el numero de la linea indicada
 	sed -i "$num_linea a region_name = RegionOne\nproject_domain_name = Default\nproject_name = service\nauth_type = password\nuser_domain_name = Default\nauth_url = http://controller:5000/v3\nusername = placement\npassword = $password" $novaConfDir
 
@@ -105,17 +113,76 @@ function novaCompute {
 		sed -i "$num_linea a virt_type = qemu" $novaConfDir
 	fi
 
+
+	#Inicio de NOVA
 	#systemctl enable libvirtd.service openstack-nova-compute.service
     #systemctl start libvirtd.service openstack-nova-compute.service
 
-	echo "----------Finalizo la configuracion del archvio nova.conf---------"
+	echo "----------Finalizo la configuracion del servicio NOVA---------"
+	sleep 2
+	clear
+}
+
+# Funcion para la modificacion de archivos para instalacion de NEUTRON en nodo de computo
+# param $1 Constraseña de RABBITMQ
+# param $2 IP del nodo actual
+function neutronCompute {
+	# SUSTITUIR CON RUTA DE neutron.conf --> se usa ruta actual para pruebas
+	neutronConfDir=/home/ricardoe/Escritorio/pruebaNeutron.conf
+	neutronLinuxBrDir=/home/ricardoe/Escritorio/pruebaLinuxBr.conf
+
+	# SUSTITUIR CON RUTA DE nova.conf --> se usa ruta actual para pruebas
+	novaConfDir=/home/ricardoe/Escritorio/prueba.conf
+
+
+	echo -e "\nIniciando cambios en neutron.conf ..."
+	sed -i "1 a transport_url = rabbit://openstack:$1@controller\nauth_strategy = keystone" $neutronConfDir
+
+	#####[keystone_authtoken]#####
+	cadena=$(grep -n "\[keystone_authtoken\]$" $neutronConfDir)
+	num_linea=${cadena/:\[keystone_authtoken\]/}
+	enterPassword "\nIngrese la constraseña del usurio neutron:"
+	sed -i "$num_linea a www_authenticate_uri = http://controller:5000\nauth_url = http://controller:5000\nmemcached_servers = controller:11211\nauth_type = password\nproject_domain_name = default\nuser_domain_name = default\nproject_name = service\nusername = neutron\npassword = $password" $neutronConfDir
+
+	#####[oslo_concurrency]#####
+	cadena=$(grep -n "\[oslo_concurrency\]$" $neutronConfDir)
+	num_linea=${cadena/:\[oslo_concurrency\]/}
+	sed -i "$num_linea a lock_path = /var/lib/neutron/tmp" $neutronConfDir
+
+	######Configuracion de LINUX BRIDGE AGENT######
+	echo -e "\nConfiguracion SELF-SERVICE NETWORK\nIniciando cambios en linuxbridge_agent.ini ..."
+
+	echo -e "\nIngrese el nombre de la interfaz que tiene acceso a internet:"
+	read intName
+	sed -i "1 a [linux_bridge]\nphysical_interface_mappings = provider:$intName\n\n[vxlan]\nenable_vxlan = true\nlocal_ip = $2\nl2_population = true\n\n[securitygroup]\nenable_security_group = true\nfirewall_driver = neutron.agent.linux.iptables_firewall.IptablesFirewallDriver" $neutronLinuxBrDir
+
+
+	# FALTA VERIFICAR SI EL MODULO ESTA CARGADO BR_NET_FILTER
+	########################################################
+
+	######Configuracion nova.conf con neutron######
+	#####[neutron]#####
+	echo -e "\nConfiguracion de neutron en NOVA Service\nIniciando cambios en nova.conf ..."
+	cadena=$(grep -n "^\[neutron\]$" $novaConfDir)
+	num_linea=${cadena/:\[neutron\]/}
+	sed -i "$num_linea a url = http://controller:9696\nauth_url = http://controller:5000\nauth_type = password\nproject_domain_name = default\nuser_domain_name = default\nregion_name = RegionOne\nproject_name = service\nusername = neutron\npassword = $password" $novaConfDir
+
+
+	#Reinicio de NOVA
+	# systemctl restart openstack-nova-compute.service
+
+	#INICIO DE NEUTRON
+	# systemctl enable neutron-linuxbridge-agent.service
+	# systemctl start neutron-linuxbridge-agent.service
+
+	echo "----------Finalizo la configuracion del servicio NEUTRON---------"
 	sleep 2
 	clear
 
 	menu
 }
 
-#Para mostrar el menu despues de que finalice alguna ejecucion
+# Funcion para mostrar mensaje de la UES
 function messageUES {
 	echo -e "
 	\e[0;31m __    __     ________     ________
@@ -126,6 +193,7 @@ function messageUES {
 	|________|   |________|   |________|\e[0m\n"
 }
 
+# Funcion encargada de controlar las opciones del menu y ejecutar respectivamente la accion correspondiente
 function menu {
 	echo -e "\e[0;31mUniversidad de El Salvador, Ingeniera de Sistemas Informaticos\e[0m
 \e[0;31mAutor: Ricardo Estupinian\e[0m"
@@ -146,12 +214,13 @@ function menu {
 		elif [[ $opcion = "Install_Compute_Node" ]]; then
 			###### NOVA ######
 			clear
-			echo -e "\e[0;36m--- Nodo de Computo ---\e[0m\nInstacion de Nova Service\n"
+			echo -e "\e[0;36m--- Nodo de Computo ---\e[0m\nInstalacion de NOVA Service\n"
+
 			#Instalacion del servicio, verifica si ya esta instalado
 			verify= verifyServiceInstall /etc/nova/ /etc/nova/nova.conf 
 			if [[ verify =  0 ]]; then
 				#yum install openstack-nova-compute -y
-				echo lol
+				echo lol #REMOVER USO DE PRUEBA
 			fi
 
 			#Llamada a funcion ingreso de contraseña
@@ -160,13 +229,14 @@ function menu {
 			echo -e "\nIngrese la direccion IP del nodo de computo actual:"
 			read ip_node
 
+			passRabbit=$password
 			#Llamada a llenado de archivos del servicio nova NODO COMPUTO
-			novaCompute $password $ip_node #Prueba
+			novaCompute $passRabbit $ip_node #Prueba ################### REMOVER EN PRODUCCION
 
 			#Llamada a funcion novaCompute si la verificacion es valida
 			echo -e "\nVerificando si la instalacion se realizo correctamente ..."
 			if [[ verify = 1 ]]; then
-				novaCompute $password $ip_node
+				novaCompute $ip_node
 			else
 				clear
 				echo -e "WARNING: No existe este archivo /etc/nova/nova.conf , algo salio mal en la instalacion. Verifique\n"
@@ -176,13 +246,23 @@ function menu {
 
 			###### NEUTRON ######
 			clear
-			echo -e "\e[0;29m--- Nodo de Computo ---\e[0m\nInstacion de Neutron Service\n"
+			echo -e "\e[0;36m--- Nodo de Computo ---\e[0m\nInstalacion de NEUTRON Service\n"
 			verify= verifyServiceInstall /etc/neutron/ /etc/neutron/neutron.conf 
 			if [[ verify =  0 ]]; then
 				#yum install openstack-neutron-linuxbridge ebtables ipset
 				echo lol
 			fi
 
+			#Llamada a funcion neutronCompute si la verificacion es valida
+			echo -e "\nVerificando si la instalacion se realizo correctamente ..."
+			neutronCompute $passRabbit $ip_node  #Prueba ################### REMOVER EN PRODUCCION
+			if [[ verify = 1 ]]; then
+				neutronCompute $ip_node
+			else
+				clear
+				echo -e "WARNING: No existe este archivo /etc/neutron/neutron.conf, algo salio mal en la instalacion. Verifique\n"
+				# menu
+			fi 
 			
 
 		elif [[ $opcion = "Salir" ]]; then
