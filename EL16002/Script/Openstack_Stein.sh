@@ -247,7 +247,6 @@ function menu {
 			verify= verifyServiceInstall /etc/neutron/ /etc/neutron/neutron.conf 
 			if [[ verify =  0 ]]; then
 				yum install openstack-neutron-linuxbridge ebtables ipset
-				echo lol
 			fi
 
 			#Llamada a funcion neutronCompute si la verificacion es valida
