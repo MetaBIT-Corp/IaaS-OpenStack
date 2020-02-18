@@ -44,7 +44,7 @@ function enterPassword {
 function novaCompute {
 
 	# SUSTITUIR CON RUTA DE nova.conf --> se usa ruta actual para pruebas
-	novaConfDir=/home/ricardoe/Escritorio/prueba.conf
+	novaConfDir=/etc/nova/nova.conf
 
 
 	echo -e "\nIniciando cambios en nova.conf ..."
@@ -115,8 +115,8 @@ function novaCompute {
 
 
 	#Inicio de NOVA
-	#systemctl enable libvirtd.service openstack-nova-compute.service
-    #systemctl start libvirtd.service openstack-nova-compute.service
+	systemctl enable libvirtd.service openstack-nova-compute.service
+    systemctl start libvirtd.service openstack-nova-compute.service
 
 	echo "----------Finalizo la configuracion del servicio NOVA---------"
 	sleep 2
@@ -127,12 +127,12 @@ function novaCompute {
 # param $1 Constraseña de RABBITMQ
 # param $2 IP del nodo actual
 function neutronCompute {
-	# SUSTITUIR CON RUTA DE neutron.conf --> se usa ruta actual para pruebas
-	neutronConfDir=/home/ricardoe/Escritorio/pruebaNeutron.conf
-	neutronLinuxBrDir=/home/ricardoe/Escritorio/pruebaLinuxBr.conf
+	# SUSTITUIR CON RUTA DE neutron.conf
+	neutronConfDir=/etc/neutron/neutron.conf
+	neutronLinuxBrDir=/etc/neutron/plugins/ml2/linuxbridge_agent.ini
 
 	# SUSTITUIR CON RUTA DE nova.conf --> se usa ruta actual para pruebas
-	novaConfDir=/home/ricardoe/Escritorio/prueba.conf
+	novaConfDir=/etc/nova/nova.conf
 
 
 	echo -e "\nIniciando cambios en neutron.conf ..."
@@ -169,11 +169,11 @@ function neutronCompute {
 
 
 	#Reinicio de NOVA
-	# systemctl restart openstack-nova-compute.service
+	systemctl restart openstack-nova-compute.service
 
 	#INICIO DE NEUTRON
-	# systemctl enable neutron-linuxbridge-agent.service
-	# systemctl start neutron-linuxbridge-agent.service
+	systemctl enable neutron-linuxbridge-agent.service
+	systemctl start neutron-linuxbridge-agent.service
 
 	echo "----------Finalizo la configuracion del servicio NEUTRON---------"
 	sleep 2
@@ -219,8 +219,7 @@ function menu {
 			#Instalacion del servicio, verifica si ya esta instalado
 			verify= verifyServiceInstall /etc/nova/ /etc/nova/nova.conf 
 			if [[ verify =  0 ]]; then
-				#yum install openstack-nova-compute -y
-				echo lol #REMOVER USO DE PRUEBA
+				yum install openstack-nova-compute -y
 			fi
 
 			#Llamada a funcion ingreso de contraseña
@@ -228,10 +227,7 @@ function menu {
 
 			echo -e "\nIngrese la direccion IP del nodo de computo actual:"
 			read ip_node
-
 			passRabbit=$password
-			#Llamada a llenado de archivos del servicio nova NODO COMPUTO
-			novaCompute $passRabbit $ip_node #Prueba ################### REMOVER EN PRODUCCION
 
 			#Llamada a funcion novaCompute si la verificacion es valida
 			echo -e "\nVerificando si la instalacion se realizo correctamente ..."
@@ -240,7 +236,8 @@ function menu {
 			else
 				clear
 				echo -e "WARNING: No existe este archivo /etc/nova/nova.conf , algo salio mal en la instalacion. Verifique\n"
-				# menu
+				sleep 3
+				menu
 			fi 
 
 
@@ -249,19 +246,19 @@ function menu {
 			echo -e "\e[0;36m--- Nodo de Computo ---\e[0m\nInstalacion de NEUTRON Service\n"
 			verify= verifyServiceInstall /etc/neutron/ /etc/neutron/neutron.conf 
 			if [[ verify =  0 ]]; then
-				#yum install openstack-neutron-linuxbridge ebtables ipset
+				yum install openstack-neutron-linuxbridge ebtables ipset
 				echo lol
 			fi
 
 			#Llamada a funcion neutronCompute si la verificacion es valida
 			echo -e "\nVerificando si la instalacion se realizo correctamente ..."
-			neutronCompute $passRabbit $ip_node  #Prueba ################### REMOVER EN PRODUCCION
 			if [[ verify = 1 ]]; then
-				neutronCompute $ip_node
+				neutronCompute $passRabbit $ip_node
 			else
 				clear
 				echo -e "WARNING: No existe este archivo /etc/neutron/neutron.conf, algo salio mal en la instalacion. Verifique\n"
-				# menu
+				sleep 3
+				menu
 			fi 
 			
 
