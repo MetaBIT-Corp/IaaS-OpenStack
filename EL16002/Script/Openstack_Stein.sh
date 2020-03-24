@@ -6,16 +6,16 @@ opciones="Obtener_Credenciales_Admin Install_Controller_Node Install_Compute_Nod
 # Verificacion de instalacion correcta de servicios en el nodo de computo
 # param $1 Directorio a verificar
 # param $2 Archivo a verificar
-# return int Retorna 0 si falla la verificacion y 1 si es un exito
 function verifyServiceInstall {
+	let verify
 	if [[ -d $1 ]]; then #Verifica si el directorio esta creado o existe
 		if [[ -f $2 ]]; then #Verifica si el archivo existe
-			return 1
+			verify=1
 		else
-			return 0
+			verify=0
 		fi	
 	else
-		return 0
+		verify=0
 	fi
 }
 
@@ -217,8 +217,8 @@ function menu {
 			echo -e "\e[0;36m--- Nodo de Computo ---\e[0m\nInstalacion de NOVA Service\n"
 
 			#Instalacion del servicio, verifica si ya esta instalado
-			verify= verifyServiceInstall /etc/nova/ /etc/nova/nova.conf 
-			if [[ verify =  0 ]]; then
+			verifyServiceInstall /etc/nova/ /etc/nova/nova.conf 
+			if [[ $verify = 0 ]]; then
 				yum install openstack-nova-compute -y
 			fi
 
@@ -231,7 +231,7 @@ function menu {
 
 			#Llamada a funcion novaCompute si la verificacion es valida
 			echo -e "\nVerificando si la instalacion se realizo correctamente ..."
-			if [[ verify = 1 ]]; then
+			if [[ $verify = 1 ]]; then
 				novaCompute $ip_node
 			else
 				clear
@@ -244,14 +244,14 @@ function menu {
 			###### NEUTRON ######
 			clear
 			echo -e "\e[0;36m--- Nodo de Computo ---\e[0m\nInstalacion de NEUTRON Service\n"
-			verify= verifyServiceInstall /etc/neutron/ /etc/neutron/neutron.conf 
-			if [[ verify =  0 ]]; then
+			verifyServiceInstall /etc/neutron/ /etc/neutron/neutron.conf 
+			if [[ $verify = 0 ]]; then
 				yum install openstack-neutron-linuxbridge ebtables ipset
 			fi
 
 			#Llamada a funcion neutronCompute si la verificacion es valida
 			echo -e "\nVerificando si la instalacion se realizo correctamente ..."
-			if [[ verify = 1 ]]; then
+			if [[ $verify = 1 ]]; then
 				neutronCompute $passRabbit $ip_node
 			else
 				clear
